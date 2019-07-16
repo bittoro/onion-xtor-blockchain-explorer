@@ -103,14 +103,14 @@ cmake ..
 make
 ```
 
-When compilation finishes executable `xtorblocks` should be created. Before running
+When compilation finishes executable `explorerblocks` should be created. Before running
 please make sure that  `~/Downloads` folder exists and is writable. 
 Time zone library that explorer is using, puts there 
 its database of time zone offsets
 
 To run it:
 ```
-./xtorblocks
+./explorerblocks
 ```
 
 By default it will look for blockchain in its default location i.e., `~/.bittoro/lmdb`.
@@ -118,7 +118,7 @@ You can use `--bc-path` option if its in different location.
 Example output:
 
 ```bash
-$ ./xtorblocks
+$ ./explorerblocks
 2016-May-28 10:04:49.160280 Blockchain initialized. last block: 1056761, d0.h0.m12.s47 time ago, current difficulty: 1517857750
 (2016-05-28 02:04:49) [INFO    ] Crow/0.1 server is running, local port 8081
 ```
@@ -128,7 +128,7 @@ Go to your browser: http://127.0.0.1:8081
 ## The explorer's command line options
 
 ```
-xtorblocks, Onion BitToro Blockchain Explorer:
+explorerblocks, Onion BitToro Blockchain Explorer:
   -h [ --help ] [=arg(=1)] (=0)         produce help message
   -t [ --testnet ] [=arg(=1)] (=0)      use testnet blockchain
   -s [ --stagenet ] [=arg(=1)] (=0)     use stagenet blockchain
@@ -184,10 +184,10 @@ Example usage, defined as bash aliases.
 
 ```bash
 # for mainnet explorer
-alias xtorblocksmainnet='~/onion-loki-blockchain-explorer/build/xtorblocks    --port 8081 --testnet-url "http://139.162.32.245:8082" --enable-pusher --enable-emission-monitor'
+alias explorerblocksmainnet='~/onion-loki-blockchain-explorer/build/explorerblocks    --port 8081 --testnet-url "http://139.162.32.245:8082" --enable-pusher --enable-emission-monitor'
 
 # for testnet explorer
-alias xtorblockstestnet='~/onion-loki-blockchain-explorer/build/xtorblocks -t --port 8082 --mainnet-url "http://139.162.32.245:8081" --enable-pusher --enable-emission-monitor'
+alias explorerblockstestnet='~/onion-loki-blockchain-explorer/build/explorerblocks -t --port 8082 --mainnet-url "http://139.162.32.245:8081" --enable-pusher --enable-emission-monitor'
 ```
 
 These are aliases similar to those used for http://139.162.32.245:8081/ and http://139.162.32.245:8082/, respectively.
@@ -199,7 +199,7 @@ disabled. To enable it use `--enable-emission-monitor` flag, e.g.,
 
 
 ```bash
-xtorblocks --enable-emission-monitor 
+explorerblocks --enable-emission-monitor 
 ```
 
 This flag will enable emission monitoring thread. When started, the thread
@@ -237,7 +237,7 @@ By default, decoding and proving tx's outputs are done on the server side. To do
 (private view and tx keys are not send to the server) JavaScript-based decoding can be enabled:
 
 ```
-xtorblocks --enable-js
+explorerblocks --enable-js
 ```
 
 ## Enable SSL (https)
@@ -253,10 +253,10 @@ openssl req -new -key server.key -out server.csr
 openssl x509 -req -days 3650 -in server.csr -signkey server.key -out server.crt
 ```
 
-Having the `crt` and `key` files, run `xtorblocks` in the following way:
+Having the `crt` and `key` files, run `explorerblocks` in the following way:
 
 ```bash
-./xtorblocks --ssl-crt-file=/tmp/server.crt --ssl-key-file=/tmp/server.key 
+./explorerblocks --ssl-crt-file=/tmp/server.crt --ssl-key-file=/tmp/server.key 
 ```
 
 Note: Because we generated our own certificate, modern browsers will complain
@@ -269,7 +269,7 @@ The explorer has JSON api. For the API, it uses conventions defined by [JSend](h
 By default the api is disabled. To enable it, use `--enable-json-api` flag, e.g.,
 
 ```
-./xtorblocks --enable-json-api
+./explorerblocks --enable-json-api
 ```
 
 #### api/transaction/<tx_hash>
