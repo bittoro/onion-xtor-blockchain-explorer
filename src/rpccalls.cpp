@@ -490,7 +490,7 @@ rpccalls::get_service_node(COMMAND_RPC_GET_SERVICE_NODES::response &res, const s
 }
 
 bool
-rpccalls::get_quorum_state(COMMAND_RPC_GET_QUORUM_STATE::response &res, uint64_t height)
+rpccalls::get_quorum_state(COMMAND_RPC_GET_QUORUM_STATE::response &res, uint64_t start_height, uint64_t end_height, uint8_t quorum_type)
 {
     std::lock_guard<std::mutex> guard(m_daemon_rpc_mutex);
     bool result = false;
@@ -502,7 +502,9 @@ rpccalls::get_quorum_state(COMMAND_RPC_GET_QUORUM_STATE::response &res, uint64_t
 
     epee::json_rpc::request<COMMAND_RPC_GET_QUORUM_STATE::request> request;
     epee::json_rpc::response<COMMAND_RPC_GET_QUORUM_STATE::response, std::string> response;
-    request.params.height = height;
+    request.params.start_height = start_height;
+    request.params.end_height = end_height == std::numeric_limits<uint64_t>::max() ? start_height : end_height;
+    request.params.quorum_type = quorum_type;
     request.jsonrpc = "2.0";
     request.id      = epee::serialization::storage_entry(0);
     request.method  = "get_quorum_state";
@@ -515,31 +517,33 @@ rpccalls::get_quorum_state(COMMAND_RPC_GET_QUORUM_STATE::response &res, uint64_t
     return result;
 }
 
-bool
-rpccalls::get_quorum_state_batched(COMMAND_RPC_GET_QUORUM_STATE_BATCHED::response &res, uint64_t height_begin, uint64_t height_end)
-{
+bool rpccalls::get_checkpoints(COMMAND_RPC_GET_CHECKPOINTS::response &res, uint32_t count, uint64_t start_height, uint64_t end_height) {
     std::lock_guard<std::mutex> guard(m_daemon_rpc_mutex);
     bool result = false;
     if (!connect_to_loki_daemon())
     {
-        cerr << "rpccalls::get_quorum_state_batched: not connected to daemon" << endl;
+        cerr << "rpccalls::get_checkpoints: not connected to daemon" << endl;
         return result;
     }
 
-    epee::json_rpc::request<COMMAND_RPC_GET_QUORUM_STATE_BATCHED::request> request;
-    epee::json_rpc::response<COMMAND_RPC_GET_QUORUM_STATE_BATCHED::response, std::string> response;
-    request.params.height_begin = height_begin;
-    request.params.height_end = height_end;
+    epee::json_rpc::request<COMMAND_RPC_GET_CHECKPOINTS::request> request;
+    epee::json_rpc::response<COMMAND_RPC_GET_CHECKPOINTS::response, std::string> response;
+    request.params.count = count;
+    request.params.start_height = start_height;
+    request.params.end_height = end_height;
     request.jsonrpc = "2.0";
     request.id      = epee::serialization::storage_entry(0);
-    request.method  = "get_quorum_state_batched";
+    request.method  = "get_checkpoints";
 
     result = epee::net_utils::invoke_http_json("/json_rpc", request, response, m_http_client, timeout_time_ms);
     if (!result)
         cerr << "Error connecting to Loki daemon at " << daemon_url << endl;
 
-    res = response.result;
+    std::cerr << "wtf; result has " << res.checkpoints.size() << " checkpoints\n";
+
+    res = std::move(response.result);
     return result;
 }
+
 
 }

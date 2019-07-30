@@ -31,7 +31,7 @@
         {{^have_raw_tx}}
         <tr>
             <td>Timestamp: {{blk_timestamp_uint}}</td>
-            <td>Timestamp [UCT]: {{blk_timestamp}}</td>
+            <td>Timestamp [UTC]: {{blk_timestamp}}</td>
             <td>Age [y:d:h:m:s]: {{delta_time}}</td>
         </tr>
         {{/have_raw_tx}}
@@ -44,9 +44,12 @@
         <tr>
             <td>TX Version: {{tx_version}}</td>
             <td>No Of Confirmations: {{confirmations}}</td>
-            <td>RingCT/Type:  {{#is_ringct}}Yes/{{rct_type}}{{/is_ringct}}{{^is_ringct}}No{{/is_ringct}}</td>
+            <td>RingCT/RingCT Type:  {{#is_ringct}}Yes/{{rct_type}}{{/is_ringct}}{{^is_ringct}}No{{/is_ringct}}</td>
         </tr>
 
+        <tr>
+          <td>TX Type: {{tx_type_emoji}} {{tx_type}}</td>
+        </tr>
 
         <tr>
             <td colspan="3" style="max-width:700px;word-wrap:break-word;">Extra: {{extra}}</td>
@@ -396,7 +399,7 @@
 
                     if (mine_output) {
 
-                        mine_output_str = '<span style="color: #DEB887;font-weight: bold">true</span>';
+                        mine_output_str = '<span style="color: #008009;font-weight: bold">true</span>';
 
                         if (is_rct && rct_type > 0 /* not coinbase*/) {
                             try {

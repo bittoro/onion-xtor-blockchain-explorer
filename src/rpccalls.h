@@ -194,10 +194,13 @@ public:
     get_service_node(COMMAND_RPC_GET_SERVICE_NODES::response &res, const std::vector<std::string> &pubkeys);
 
     bool
-    get_quorum_state(COMMAND_RPC_GET_QUORUM_STATE::response &res, uint64_t height);
+    get_quorum_state(COMMAND_RPC_GET_QUORUM_STATE::response &res, uint64_t start_height = std::numeric_limits<uint64_t>::max(), uint64_t end_height = std::numeric_limits<uint64_t>::max(), uint8_t quorum_type = 255);
 
     bool
-    get_quorum_state_batched(COMMAND_RPC_GET_QUORUM_STATE_BATCHED::response &res, uint64_t height_begin, uint64_t height_end);
+    get_checkpoints(COMMAND_RPC_GET_CHECKPOINTS::response &res,
+        uint32_t count = COMMAND_RPC_GET_CHECKPOINTS::NUM_CHECKPOINTS_TO_QUERY_BY_DEFAULT,
+        uint64_t start_height = COMMAND_RPC_GET_CHECKPOINTS::HEIGHT_SENTINEL_VALUE,
+        uint64_t end_height = COMMAND_RPC_GET_CHECKPOINTS::HEIGHT_SENTINEL_VALUE);
 };
 
 

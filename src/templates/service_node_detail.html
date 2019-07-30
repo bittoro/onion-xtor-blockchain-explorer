@@ -90,4 +90,26 @@
         </tr>
         {{/service_node_contributors}}
     </table>
+
+    {{#pending_stakes_size}}
+    <h2>{{pending_stakes_size}} pending mempool contribution(s)</h2>
+    <div class="TitleDivider"></div>
+
+    <table style="width:100%" class="pending-mempool-stakes">
+        <tr class="TableHeader">
+            <td>Contributor</td>
+            <td class="tx">TX</td>
+            <td>Amount</td>
+        </tr>
+
+        {{#pending_stakes}}
+        <tr>
+            <td>{{address}}</td>
+            <td class="tx"><a href="/tx/{{txid}}">{{txid}}</a></td>
+            <td>{{amount}}</td>
+        </tr>
+        {{/pending_stakes}}
+    </table>
+    {{/pending_stakes_size}}
+
 </div>
