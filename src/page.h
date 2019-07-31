@@ -2625,13 +2625,13 @@ show_my_outputs(string tx_hash_str,
         return string("Cant get tx hash due to parse error: " + tx_hash_str);
     }
 
-    // parse string representing given loki address
+    // parse string representing given bittoro address
     cryptonote::address_parse_info address_info;
 
     if (!lokeg::parse_str_address(lok_address_str,  address_info, nettype))
     {
         cerr << "Cant parse string address: " << lok_address_str << endl;
-        return string("Cant parse Loki address: " + lok_address_str);
+        return string("Cant parse BitToro address: " + lok_address_str);
     }
 
     // parse string representing given private key
@@ -4760,11 +4760,11 @@ search(string search_text)
     result_html = default_txt;
 
 
-    // check if bittoro address is given based on its length
+    // check if BitToro address is given based on its length
     // if yes, then we can only show its public components
     if (search_str_length == 98)
     {
-        // parse string representing given loki address
+        // parse string representing given BitToro address
         address_parse_info address_info;
 
         cryptonote::network_type nettype_addr {cryptonote::network_type::MAINNET};
@@ -4786,7 +4786,7 @@ search(string search_text)
 
     // check if integrated loki address is given based on its length
     // if yes, then show its public components search tx based on encrypted id
-    if (search_str_length == 106)
+    if (search_str_length == 109)
     {
 
         cryptonote::account_public_address address;
