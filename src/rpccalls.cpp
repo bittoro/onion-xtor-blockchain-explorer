@@ -330,9 +330,10 @@ rpccalls::get_hardfork_info(COMMAND_RPC_HARD_FORK_INFO::response& response)
 
 
 bool
-rpccalls::get_dynamic_per_kb_fee_estimate(
+rpccalls::get_fee_estimate(
         uint64_t grace_blocks,
-        uint64_t& fee,
+        uint64_t& fee_per_byte,
+        uint64_t& fee_per_out,
         string& error_msg)
 {
     epee::json_rpc::request<COMMAND_RPC_GET_BASE_FEE_ESTIMATE::request>
@@ -353,7 +354,7 @@ rpccalls::get_dynamic_per_kb_fee_estimate(
 
         if (!connect_to_loki_daemon())
         {
-            cerr << "get_dynamic_per_kb_fee_estimate: not connected to daemon" << endl;
+            cerr << "get_fee_estimate: not connected to daemon" << endl;
             return false;
         }
 
@@ -390,7 +391,8 @@ rpccalls::get_dynamic_per_kb_fee_estimate(
         return false;
     }
 
-    fee = resp_t.result.fee;
+    fee_per_byte = resp_t.result.fee_per_byte;
+    fee_per_out = resp_t.result.fee_per_output;
 
     return true;
 }

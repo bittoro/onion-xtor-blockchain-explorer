@@ -67,19 +67,19 @@
               <td>Expiry Date UTC (Estimated)</td>
           </tr>
 
-          {{#quorum_workers}}
+          {{#quorum_validators}}
           <tr>
               <td class="quorum-pubkey"><span>{{quorum_index}}: <a href="/service_node/{{public_key}}">{{public_key}}</a></span></td>
               <td>{{last_uptime_proof}}</td>
               <td>{{expiration_date}} ({{expiration_time_relative}})</td>
           </tr>
-          {{/quorum_workers}}
+          {{/quorum_validators}}
 
-          {{#quorum_workers_more}}
+          {{#quorum_validators_more}}
           <tr>
-              <td class="sn-more" colspan="3"><a href="/obligations_quorum/{{quorum_height}}">+ {{quorum_workers_more}} more ↪</a></td>
+              <td class="sn-more" colspan="3"><a href="/obligations_quorum/{{quorum_height}}">+ {{quorum_validators_more}} more ↪</a></td>
           </tr>
-          {{/quorum_workers_more}}
+          {{/quorum_validators_more}}
       </table>
 </div> <!-- Wrapper -->
 {{/checkpointing_quorum_array}}

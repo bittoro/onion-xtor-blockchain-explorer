@@ -45,7 +45,7 @@
             | Hard fork: v{{current_hf_version}}
             | Hash rate: {{hash_rate}}
             | Staking Requirement: {{staking_requirement}}
-            | Fee per byte: {{fee_per_kb}}
+            | Fee: {{fee_per_byte}}/byte + {{fee_per_output}}/output
             | Median block size limit: {{block_size_limit}} kB
             | Total blockchain size: {{total_blockchain_size}} GB
             {{^is_current_info}}
@@ -54,7 +54,7 @@
         </p>
     {{/network_info}}
 
-    <p>TX Types Legend: Recommission: &#x1F44D; | Decommission: &#x1F44E; | Deregister: &#x1F6AB; | IP Change Penalty: &#x1F4CB; | Stake Unlock: &#x1F513;</p>
+    <p>TX Types Legend: Registration: 🏁 | Contribution: ⚑ | Recommission: 👍 | Decommission: 👎 | Deregister: 🚫 | IP Change Penalty: 📋 | Stake Unlock: 🔓</p>
 
     {{#emission}}
         <p style="margin-top: 2px">
@@ -98,7 +98,7 @@
                 <td><a href="/block/{{height}}">{{height}}</a></td>
                 <td>{{age}}<!--{{time_delta}}--></td>
                 <td>{{blk_size}}</td>
-                <td class="TXType">{{tx_type}}</td>
+                <td class="TXType">{{>tx_type_symbol}}</td>
                 <td><a href="/tx/{{hash}}">{{hash}}</a></td>
                 <td>{{tx_fee_short}}</td>
                 <td>{{sum_outputs_short}}</td>

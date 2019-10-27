@@ -17,7 +17,7 @@
           {{#mempooltxs}}
           <tr>
               <td>{{age}}</td>
-              <td class=TXType>{{tx_type}}</td>
+              <td class=TXType>{{>tx_type_symbol}}</td>
               <td><a href="/tx/{{hash}}">{{hash}}</a></td>
               <td>{{fee}}/{{payed_for_kB}}</td>
               <!--<td>{{lok_outputs}}</td>-->

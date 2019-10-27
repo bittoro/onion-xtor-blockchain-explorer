@@ -38,7 +38,7 @@
 
 
 #define TMPL_DIR                    "./templates"
-#define TMPL_PARIALS_DIR            TMPL_DIR "/partials"
+#define TMPL_PARTIALS_DIR           TMPL_DIR "/partials"
 #define TMPL_CSS_STYLES             TMPL_DIR "/css/style.css"
 #define TMPL_INDEX                  TMPL_DIR "/index.html"
 #define TMPL_INDEX2                 TMPL_DIR "/index2.html"
@@ -412,6 +412,8 @@ string js_html_files_all_in_one;
 // read operation in OS
 map<string, string> template_file;
 
+map<string, string> partials;
+
 
 // alias for easy class typing
 template <typename Key, typename Value>
@@ -516,9 +518,11 @@ page(MicroCore* _mcore,
     template_file["checkoutputkeys"] = get_full_page(lokeg::read(TMPL_MY_CHECKRAWOUTPUTKEYS));
     template_file["address"]         = get_full_page(lokeg::read(TMPL_ADDRESS));
     template_file["search_results"]  = get_full_page(lokeg::read(TMPL_SEARCH_RESULTS));
-    template_file["tx_details"]      = lokeg::read(string(TMPL_PARIALS_DIR) + "/tx_details.html");
-    template_file["tx_table_header"] = lokeg::read(string(TMPL_PARIALS_DIR) + "/tx_table_header.html");
-    template_file["tx_table_row"]    = lokeg::read(string(TMPL_PARIALS_DIR) + "/tx_table_row.html");
+
+    partials["tx_details"]      = lokeg::read(string(TMPL_PARTIALS_DIR) + "/tx_details.html");
+    partials["tx_table_head"]   = lokeg::read(string(TMPL_PARTIALS_DIR) + "/tx_table_header.html");
+    partials["tx_table_row"]    = lokeg::read(string(TMPL_PARTIALS_DIR) + "/tx_table_row.html");
+    partials["tx_type_symbol"]  = lokeg::read(string(TMPL_PARTIALS_DIR) + "/tx_type_symbol.html");
 
     if (enable_js) {
         // JavaScript files
@@ -964,26 +968,151 @@ render_checkpoints_html(bool add_header_and_footer)
     return mstch::render(template_file["checkpoints_full"], page_context);
 }
 
-static std::string tx_type_to_emoji(cryptonote::transaction const &tx, uint8_t hf_version)
-{
-  std::string result;
-  if (tx.type == cryptonote::txtype::state_change)
-  {
-    tx_extra_service_node_state_change state_change;
-    if (get_service_node_state_change_from_tx_extra(tx.extra, state_change, hf_version))
+// Populates the given context with service node metadata from the tx (such as state change type,
+// registration info, etc.).  If detailed is true we query a bunch of extra info (quorum info,
+// detailed registration info, etc.), otherwise we just add basic info about the type of
+// transaction.
+void add_tx_service_node_metadata(mstch::map &context, const cryptonote::transaction &tx, bool detailed = false) {
+    bool is_miner_tx = (tx.vin.size() && tx.vin[0].type() == typeid(cryptonote::txin_gen));
+    context["is_miner_tx"] = is_miner_tx;
+    if (is_miner_tx)
     {
-      if (state_change.state == service_nodes::new_state::deregister) result = "\xF0\x9F\x9A\xAB"; // no entry
-      if (state_change.state == service_nodes::new_state::decommission) result = "\xF0\x9F\x91\x8E"; // thumbs down
-      if (state_change.state == service_nodes::new_state::recommission) result = "\xF0\x9F\x91\x8D"; // thumbs up
-      if (state_change.state == service_nodes::new_state::ip_change_penalty) result = "\xF0\x9F\x93\x8B"; // clipboard
+        if (detailed)
+        {
+            crypto::public_key winner      = cryptonote::get_service_node_winner_from_tx_extra(tx.extra);
+            context["service_node_winner"] = pod_to_hex(winner);
+        }
     }
-  }
-  else if (tx.type == cryptonote::txtype::key_image_unlock)
-  {
-    result = "\xF0\x9F\x94\x93"; // open lock
-  }
+    else
+    {
+        if (tx.version >= cryptonote::txversion::v3_per_output_unlock_times)
+        {
+            tx_extra_service_node_register     register_;
+            tx_extra_tx_key_image_unlock       unlock_;
+            cryptonote::account_public_address contributor;
+            if (tx.type == cryptonote::txtype::state_change)
+            {
+                // Getting the hard fork version here is a bit tricker, so just try with v12 then if it
+                // fails, try with v11 instead (to capture older deregs).  Both still give back a
+                // state_change (for the older deregs, it translates the dereg_old into a state_change
+                // deregistration transparently).
+                tx_extra_service_node_state_change state_change;
+                context["is_state_change"] = true;
+#if 1
+                bool new_style = get_service_node_state_change_from_tx_extra(tx.extra, state_change, cryptonote::network_version_12_checkpointing);
+                if (new_style || get_service_node_state_change_from_tx_extra(tx.extra, state_change, cryptonote::network_version_11_infinite_staking)) {
+                   if (new_style)
+                        context["state_change_new_style"] = true;
+#else
+                if (get_service_node_state_change_from_tx_extra(tx.extra, state_change, blk.major_version)) {
+                    context["state_change_new_style"] = blk.major_version >= cryptonote::network_version_12_checkpointing;
+#endif
+                    context["state_change_service_node_index"] = state_change.service_node_index;
+                    context["state_change_block_height"] = state_change.block_height;
+                    context[
+                        state_change.state == service_nodes::new_state::deregister ? "state_change_deregister" :
+                        state_change.state == service_nodes::new_state::decommission ? "state_change_decommission" :
+                        state_change.state == service_nodes::new_state::recommission ? "state_change_recommission" :
+                        state_change.state == service_nodes::new_state::ip_change_penalty ? "state_change_ip_change_penalty" :
+                        "state_change_unknown"] = true;
 
-  return result;
+                    if (detailed) {
+                        // Try to get the quorum state to figure out the vote casters & target; unless very
+                        // recent, this requires lokid to be started with --store-quorum-history (PR #702)
+                        std::vector<std::string> quorum_nodes;
+                        COMMAND_RPC_GET_QUORUM_STATE::response response = {};
+                        rpc.get_quorum_state(response, state_change.block_height, state_change.block_height, static_cast<uint8_t>(service_nodes::quorum_type::obligations));
+
+                        if (response.status == "OK" && !response.quorums.empty()) {
+                            auto &quorum = response.quorums[0].quorum;
+                            if (state_change.service_node_index < quorum.workers.size())
+                                context["state_change_service_node_pubkey"] = quorum.workers[state_change.service_node_index];
+                            quorum_nodes = std::move(quorum.validators);
+                            context["state_change_have_pubkey_info"] = true;
+                        }
+
+                        auto &vote_array = get<mstch::array>(context.emplace("state_change_vote_array", mstch::array()).first->second);
+                        vote_array.reserve(state_change.votes.size());
+
+                        for (const auto &vote : state_change.votes)
+                        {
+                            mstch::map entry
+                            {
+                                {"state_change_voters_quorum_index", vote.validator_index},
+                                {"state_change_signature",           pod_to_hex(vote.signature)},
+                            };
+                            if (vote.validator_index < quorum_nodes.size())
+                                entry["state_change_voter_pubkey"] = quorum_nodes[vote.validator_index];
+
+                            vote_array.push_back(std::move(entry));
+                        }
+                    }
+                }
+                else {
+                    context["state_change_unknown"] = std::string{"unknown"};
+                }
+            }
+            else if (tx.type == cryptonote::txtype::key_image_unlock && get_tx_key_image_unlock_from_tx_extra(tx.extra, unlock_))
+            {
+                context["have_unlock_info"] = true;
+                context["unlock_service_node_pubkey"] = extract_sn_pubkey(tx.extra);
+                if (detailed) {
+                    context["unlock_key_image"] = pod_to_hex(unlock_.key_image);
+                    context["unlock_signature"] = pod_to_hex(unlock_.signature);
+                }
+            }
+            else if (get_service_node_register_from_tx_extra(tx.extra, register_))
+            {
+                // TODO(doyle): We should add a url for jumping to the node,
+                // maybe. We only have information about the current state of
+                // the network, so previous expired nodes no longer can be
+                // accessed. This needs the store to db functionality.
+                // likewise for contributions, below.
+
+                context["have_register_info"]             = true;
+                context["register_service_node_pubkey"]   = extract_sn_pubkey(tx.extra);
+                context["register_portions_for_operator"] = portions_to_percent(register_.m_portions_for_operator);
+
+                if (detailed) {
+                    context["register_expiration_timestamp_friendly"]  = timestamp_to_str_gm(register_.m_expiration_timestamp);
+                    context["register_expiration_timestamp_relative"]  = get_human_time_ago(register_.m_expiration_timestamp, time(nullptr));
+                    context["register_expiration_timestamp"]  = register_.m_expiration_timestamp;
+                    context["register_signature"]             = pod_to_hex(register_.m_service_node_signature);
+
+                    auto &array = get<mstch::array>(context.emplace("register_array", mstch::array()).first->second);
+                    array.reserve(register_.m_public_spend_keys.size());
+
+                    for (size_t i = 0; i < register_.m_public_spend_keys.size(); ++i)
+                    {
+                      crypto::public_key const &spend_key = register_.m_public_spend_keys[i];
+                      crypto::public_key const &view_key =  register_.m_public_view_keys[i];
+                      auto portion = register_.m_portions[i];
+
+                      account_public_address address = {};
+                      address.m_spend_public_key     = spend_key;
+                      address.m_view_public_key      = view_key;
+
+                      mstch::map entry
+                      {
+                        {"register_address", get_account_address_as_str(nettype, false /*is_subaddress*/, address)},
+                        {"register_portions", portions_to_percent(portion)},
+                      };
+
+                      array.push_back(entry);
+                    }
+                }
+            }
+            else if (get_service_node_contributor_from_tx_extra(tx.extra, contributor))
+            {
+                context["have_contribution_info"]           = true;
+                context["contribution_service_node_pubkey"] = extract_sn_pubkey(tx.extra);
+                context["contribution_address"]             = get_account_address_as_str(nettype, false /*is_subaddress*/, contributor);
+
+                uint64_t amount = get_amount_from_stake(tx, contributor);
+                context["contribution_amount"] = amount > 0 ? lokeg::lok_amount_to_str(amount, "{:0.9f}", true) : "<decode error>";
+            }
+        }
+    }
 }
 
 /**
@@ -1260,7 +1389,6 @@ index2(uint64_t page_no = 0, bool refresh_page = false)
                 txd_map.insert({"is_ringct" , tx.version >= cryptonote::txversion::v2_ringct});
                 txd_map.insert({"rct_type"  , tx.rct_signatures.type});
                 txd_map.insert({"blk_size"  , blk_size_str});
-                txd_map.insert({"tx_type"   , tx_type_to_emoji(tx, blk.major_version)});
 
 
                 // do not show block info for other than first tx in a block
@@ -1270,6 +1398,8 @@ index2(uint64_t page_no = 0, bool refresh_page = false)
                     txd_map["age"]        = string("");
                     txd_map["blk_size"]   = string("");
                 }
+
+                add_tx_service_node_metadata(txd_map, tx);
 
                 txd_pairs.emplace_back(txd.hash, txd_map);
 
@@ -1347,7 +1477,8 @@ index2(uint64_t page_no = 0, bool refresh_page = false)
     context["network_info"] = mstch::map {
             {"difficulty"         , lokeg::make_comma_sep_number(current_network_info.difficulty)},
             {"hash_rate"          , hash_rate},
-            {"fee_per_kb"         , print_money(current_network_info.fee_per_kb)},
+            {"fee_per_byte"       , print_money(current_network_info.fee_per_byte)},
+            {"fee_per_output"     , print_money(current_network_info.fee_per_out)},
             {"alt_blocks_no"      , current_network_info.alt_blocks_count},
             {"have_alt_block"     , (current_network_info.alt_blocks_count > 0)},
             {"tx_pool_size"       , current_network_info.tx_pool_size},
@@ -1423,7 +1554,7 @@ index2(uint64_t page_no = 0, bool refresh_page = false)
     add_css_style(context);
 
     // render the page
-    return mstch::render(template_file["index2"], context);
+    return mstch::render(template_file["index2"], context, partials);
 }
 
 /**
@@ -1506,11 +1637,10 @@ mempool(bool add_header_and_footer = false, uint64_t no_of_mempool_tx = 25)
         // cout << "block_tx_json_cache from cache" << endl;
 
         // set output page template map
-        txs.push_back(mstch::map {
+        mstch::map context{
                 {"timestamp_no"    , mempool_tx.receive_time},
                 {"timestamp"       , mempool_tx.timestamp_str},
                 {"age"             , age_str},
-                {"tx_type"         , tx_type_to_emoji(mempool_tx.tx, MempoolStatus::current_network_info.load().current_hf_version)},
                 {"hash"            , pod_to_hex(mempool_tx.tx_hash)},
                 {"fee"             , mempool_tx.fee_str},
                 {"payed_for_kB"    , mempool_tx.payed_for_kB_str},
@@ -1522,7 +1652,11 @@ mempool(bool add_header_and_footer = false, uint64_t no_of_mempool_tx = 25)
                 {"no_nonrct_inputs", mempool_tx.num_nonrct_inputs},
                 {"mixin"           , mempool_tx.mixin_no},
                 {"txsize"          , mempool_tx.txsize}
-        });
+        };
+
+        add_tx_service_node_metadata(context, mempool_tx.tx);
+
+        txs.push_back(std::move(context));
     }
 
     context.insert({"mempool_size_kB",
@@ -1537,7 +1671,7 @@ mempool(bool add_header_and_footer = false, uint64_t no_of_mempool_tx = 25)
         context["partial_mempool_shown"] = false;
 
         // render the page
-        return mstch::render(template_file["mempool_full"], context);
+        return mstch::render(template_file["mempool_full"], context, partials);
     }
 
     // this is for partial disply on front page.
@@ -1548,7 +1682,7 @@ mempool(bool add_header_and_footer = false, uint64_t no_of_mempool_tx = 25)
     context["partial_mempool_shown"] = true;
 
     // render the page
-    return mstch::render(template_file["mempool"], context);
+    return mstch::render(template_file["mempool"], context, partials);
 }
 
 
@@ -1704,6 +1838,7 @@ show_block(uint64_t _blk_height)
 
     string blk_pow_hash_str = pod_to_hex(get_block_longhash(core_storage, blk, _blk_height, 0));
     uint64_t blk_difficulty = core_storage->get_db().get_block_difficulty(_blk_height);
+    uint64_t blk_cumulative_difficulty = core_storage->get_db().get_block_cumulative_difficulty(_blk_height);
 
     mstch::map context {
             {"testnet"              , testnet},
@@ -1724,13 +1859,15 @@ show_block(uint64_t _blk_height)
             {"delta_time"           , delta_time},
             {"blk_nonce"            , blk.nonce},
             {"blk_pow_hash"         , blk_pow_hash_str},
-            {"blk_difficulty"       , blk_difficulty},
+            {"blk_difficulty"       , lokeg::make_comma_sep_number(blk_difficulty)},
             {"age_format"           , age.second},
             {"major_ver"            , std::to_string(blk.major_version)},
             {"minor_ver"            , std::to_string(blk.minor_version)},
-            {"blk_size"             , fmt::format("{:0.4f}",
-                                                  static_cast<double>(blk_size) / 1024.0)},
+            {"blk_size"             , fmt::format("{:0.4f}", static_cast<double>(blk_size) / 1024.0)},
+            {"blk_cumulative_difficulty" , lokeg::make_comma_sep_number(blk_cumulative_difficulty)},
     };
+
+    add_tx_service_node_metadata(context, blk.miner_tx, true /*detailed*/);
     context.emplace("coinbase_txs", mstch::array{{txd_coinbase.get_mstch_map()}});
     context.emplace("blk_txs"     , mstch::array());
 
@@ -2090,10 +2227,6 @@ show_tx(string tx_hash_str, uint16_t with_ring_signatures = 0)
     };
 
     boost::get<mstch::array>(context["txs"]).push_back(tx_context);
-
-    map<string, string> partials {
-            {"tx_details", template_file["tx_details"]},
-    };
 
     add_css_style(context);
 
@@ -2605,7 +2738,7 @@ show_my_outputs(string tx_hash_str,
 
     if (lok_address_str.empty())
     {
-        return string("Loki address not provided!");
+        return string("BitToro address not provided!");
     }
 
     if (viewkey_str.empty())
@@ -2625,13 +2758,13 @@ show_my_outputs(string tx_hash_str,
         return string("Cant get tx hash due to parse error: " + tx_hash_str);
     }
 
-    // parse string representing given bittoro address
+    // parse string representing given BitToro address
     cryptonote::address_parse_info address_info;
 
     if (!lokeg::parse_str_address(lok_address_str,  address_info, nettype))
     {
         cerr << "Cant parse string address: " << lok_address_str << endl;
-        return string("Cant parse BitToro address: " + lok_address_str);
+        return string("Cant parse XTOR address: " + lok_address_str);
     }
 
     // parse string representing given private key
@@ -3812,10 +3945,6 @@ show_checkrawtx(string raw_tx_data, string action)
 
             boost::get<mstch::array>(context["txs"]).push_back(tx_context);
 
-            map<string, string> partials {
-                    {"tx_details", template_file["tx_details"]},
-            };
-
             add_css_style(context);
 
             if (enable_js)
@@ -4067,10 +4196,6 @@ show_checkrawtx(string raw_tx_data, string action)
 
     }
 
-
-    map<string, string> partials {
-            {"tx_details", template_file["tx_details"]},
-    };
 
     // render the page
     return mstch::render(full_page, context, partials);
@@ -4784,7 +4909,7 @@ search(string search_text)
         return show_address_details(address_info, nettype_addr);
     }
 
-    // check if integrated loki address is given based on its length
+    // check if integrated BitToro address is given based on its length
     // if yes, then show its public components search tx based on encrypted id
     if (search_str_length == 109)
     {
@@ -5049,12 +5174,6 @@ show_search_results(const string& search_text,
 
     // add header and footer
     string full_page = template_file["search_results"];
-
-    // read partial for showing details of tx(s) found
-    map<string, string> partials {
-            {"tx_table_head", template_file["tx_table_header"]},
-            {"tx_table_row" , template_file["tx_table_row"]}
-    };
 
     add_css_style(context);
 
@@ -5937,7 +6056,7 @@ json_outputs(string tx_hash_str,
     if (address_str.empty())
     {
         j_response["status"]  = "error";
-        j_response["message"] = "Loki address not provided";
+        j_response["message"] = "BitToro address not provided";
         return j_response;
     }
 
@@ -5968,13 +6087,13 @@ json_outputs(string tx_hash_str,
         return j_response;
     }
 
-    // parse string representing given loki address
+    // parse string representing given BitToro address
     address_parse_info address_info;
 
     if (!lokeg::parse_str_address(address_str,  address_info, nettype))
     {
         j_response["status"]  = "error";
-        j_response["message"] = "Cant parse Loki address: " + address_str;
+        j_response["message"] = "Cant parse XTOR address: " + address_str;
         return j_response;
 
     }
@@ -6162,7 +6281,7 @@ json_outputsblocks(string _limit,
     if (address_str.empty())
     {
         j_response["status"]  = "error";
-        j_response["message"] = "Loki address not provided";
+        j_response["message"] = "BitToro address not provided";
         return j_response;
     }
 
@@ -6173,13 +6292,13 @@ json_outputsblocks(string _limit,
         return j_response;
     }
 
-    // parse string representing given Loki address
+    // parse string representing given BitToro address
     address_parse_info address_info;
 
     if (!lokeg::parse_str_address(address_str, address_info, nettype))
     {
         j_response["status"]  = "error";
-        j_response["message"] = "Cant parse Loki address: " + address_str;
+        j_response["message"] = "Cant parse XTOR address: " + address_str;
         return j_response;
 
     }
@@ -6332,17 +6451,18 @@ json_networkinfo()
         return j_response;
     }
 
-    uint64_t fee_estimated {0};
+    uint64_t fee_estimated_per_byte{0}, fee_estimated_per_out{0};
 
     // get dynamic fee estimate from last 10 blocks
-    if (!get_dynamic_per_kb_fee_estimate(fee_estimated))
+    if (!get_fee_estimate(fee_estimated_per_byte, fee_estimated_per_out))
     {
         j_response["status"]  = "error";
         j_response["message"] = "Cant get dynamic fee esimate";
         return j_response;
     }
 
-    j_info["fee_per_kb"] = fee_estimated;
+    j_info["fee_per_byte"] = fee_estimated_per_byte;
+    j_info["fee_per_output"] = fee_estimated_per_out;
 
     j_info["tx_pool_size"]        = MempoolStatus::mempool_no.load();
     j_info["tx_pool_size_kbytes"] = MempoolStatus::mempool_size.load();
@@ -6829,7 +6949,6 @@ construct_tx_context(transaction tx, uint16_t with_ring_signatures = 0)
             {"tx_json"               , tx_json},
             {"is_ringct"             , tx.version >= cryptonote::txversion::v2_ringct},
             {"tx_type"               , string(cryptonote::transaction::type_to_string(tx.type))},
-            {"tx_type_emoji"         , tx_type_to_emoji(tx, blk.major_version)},
             {"rct_type"              , tx.rct_signatures.type},
             {"has_error"             , false},
             {"error_msg"             , string("")},
@@ -6839,125 +6958,7 @@ construct_tx_context(transaction tx, uint16_t with_ring_signatures = 0)
             {"construction_time"     , string {}},
     };
 
-    if (tx.version >= cryptonote::txversion::v3_per_output_unlock_times)
-    {
-        tx_extra_service_node_register     register_;
-        cryptonote::account_public_address contributor;
-        if (tx.type == cryptonote::txtype::state_change)
-        {
-            // Getting the hard fork version here is a bit tricker, so just try with v12 then if it
-            // fails, try with v11 instead (to capture older deregs).  Both still give back a
-            // state_change (for the older deregs, it translates the dereg_old into a state_change
-            // deregistration transparently).
-            tx_extra_service_node_state_change state_change;
-            context["is_state_change"] = true;
-#if 1
-            bool new_style = get_service_node_state_change_from_tx_extra(tx.extra, state_change, cryptonote::network_version_12_checkpointing);
-            if (new_style || get_service_node_state_change_from_tx_extra(tx.extra, state_change, cryptonote::network_version_11_infinite_staking)) {
-               if (new_style)
-                    context["state_change_new_style"] = true;
-#else
-            if (get_service_node_state_change_from_tx_extra(tx.extra, state_change, blk.major_version)) {
-                context["state_change_new_style"] = blk.major_version >= cryptonote::network_version_12_checkpointing;
-#endif
-                context["state_change_service_node_index"] = state_change.service_node_index;
-                context["state_change_block_height"] = state_change.block_height;
-                context[
-                    state_change.state == service_nodes::new_state::deregister ? "state_change_deregister" :
-                    state_change.state == service_nodes::new_state::decommission ? "state_change_decommission" :
-                    state_change.state == service_nodes::new_state::recommission ? "state_change_recommission" :
-                    state_change.state == service_nodes::new_state::ip_change_penalty ? "state_change_ip_change_penalty" :
-                    "state_change_unknown"] = true;
-
-                std::vector<std::string> quorum_nodes;
-                // Try to get the quorum state to figure out the vote casters & target; unless very
-                // recent, this requires lokid to be started with --store-quorum-history (PR #702)
-                {
-                    COMMAND_RPC_GET_QUORUM_STATE::response response = {};
-                    rpc.get_quorum_state(response, state_change.block_height, state_change.block_height, static_cast<uint8_t>(service_nodes::quorum_type::obligations));
-                    if (response.status == "OK" && !response.quorums.empty()) {
-                        auto &quorum = response.quorums[0].quorum;
-                        if (state_change.service_node_index < quorum.workers.size())
-                            context["state_change_service_node_pubkey"] = quorum.workers[state_change.service_node_index];
-                        quorum_nodes = std::move(quorum.validators);
-                        context["state_change_have_pubkey_info"] = true;
-                    }
-                }
-
-                char const vote_array_id[] = "state_change_vote_array";
-                context.emplace(vote_array_id, mstch::array());
-
-                mstch::array& vote_array = boost::get<mstch::array>(context[vote_array_id]);
-                vote_array.reserve(state_change.votes.size());
-
-                for (tx_extra_service_node_state_change::vote &vote : state_change.votes)
-                {
-                    mstch::map entry
-                    {
-                        {"state_change_voters_quorum_index", vote.validator_index},
-                        {"state_change_signature",           pod_to_hex(vote.signature)},
-                    };
-                    if (vote.validator_index < quorum_nodes.size())
-                        entry["state_change_voter_pubkey"] = quorum_nodes[vote.validator_index];
-
-                    vote_array.push_back(entry);
-                }
-            }
-            else {
-                context["state_change_unknown"] = std::string{"unknown"};
-            }
-        }
-        else if (get_service_node_register_from_tx_extra(tx.extra, register_))
-        {
-            // TODO(doyle): We should add a url for jumping to the node,
-            // maybe. We only have information about the current state of
-            // the network, so previous expired nodes no longer can be
-            // accessed. This needs the store to db functionality.
-            // likewise for contributions, below.
-
-            context["have_register_info"]             = true;
-            context["register_service_node_pubkey"]   = extract_sn_pubkey(tx.extra);
-            context["register_portions_for_operator"] = portions_to_percent(register_.m_portions_for_operator);
-            context["register_expiration_timestamp_friendly"]  = timestamp_to_str_gm(register_.m_expiration_timestamp);
-            context["register_expiration_timestamp_relative"]  = get_human_time_ago(register_.m_expiration_timestamp, time(nullptr));
-            context["register_expiration_timestamp"]  = register_.m_expiration_timestamp;
-            context["register_signature"]             = pod_to_hex(register_.m_service_node_signature);
-
-            char const array_id[] = "register_array";
-            context.emplace(array_id, mstch::array());
-
-            mstch::array& array = boost::get<mstch::array>(context[array_id]);
-            array.reserve(register_.m_public_spend_keys.size());
-
-            for (size_t i = 0; i < register_.m_public_spend_keys.size(); ++i)
-            {
-              crypto::public_key const &spend_key = register_.m_public_spend_keys[i];
-              crypto::public_key const &view_key =  register_.m_public_view_keys[i];
-              auto portion = register_.m_portions[i];
-
-              account_public_address address = {};
-              address.m_spend_public_key     = spend_key;
-              address.m_view_public_key      = view_key;
-
-              mstch::map entry
-              {
-                {"register_address", get_account_address_as_str(nettype, false /*is_subaddress*/, address)},
-                {"register_portions", portions_to_percent(portion)},
-              };
-
-              array.push_back(entry);
-            }
-        }
-        else if (get_service_node_contributor_from_tx_extra(tx.extra, contributor))
-        {
-			context["have_contribution_info"]           = true;
-			context["contribution_service_node_pubkey"] = extract_sn_pubkey(tx.extra);
-			context["contribution_address"]             = get_account_address_as_str(nettype, false /*is_subaddress*/, contributor);
-
-            uint64_t amount = get_amount_from_stake(tx, contributor);
-            context["contribution_amount"] = amount > 0 ? lokeg::lok_amount_to_str(amount, "{:0.9f}", true) : "<decode error>";
-        }
-    }
+    add_tx_service_node_metadata(context, tx, true /*detailed*/);
 
     // append tx_json as in raw format to html
     context["tx_json_raw"] = mstch::lambda{[=](const std::string& text) -> mstch::node {
@@ -7612,7 +7613,8 @@ get_loki_network_info(json& j_info)
        {"block_size_limit"          , local_copy_network_info.block_size_limit},
        {"block_size_median"         , local_copy_network_info.block_size_median},
        {"start_time"                , local_copy_network_info.start_time},
-       {"fee_per_kb"                , local_copy_network_info.fee_per_kb},
+       {"fee_per_byte"              , local_copy_network_info.fee_per_byte},
+       {"fee_per_output"            , local_copy_network_info.fee_per_out},
        {"current_hf_version"        , local_copy_network_info.current_hf_version},
        {"total_blockchain_size"     , local_copy_network_info.total_blockchain_size}
     };
@@ -7621,16 +7623,16 @@ get_loki_network_info(json& j_info)
 }
 
 bool
-get_dynamic_per_kb_fee_estimate(uint64_t& fee_estimated)
+get_fee_estimate(uint64_t &fee_estimated_per_byte, uint64_t &fee_estimated_per_out)
 {
 
     string error_msg;
 
-    if (!rpc.get_dynamic_per_kb_fee_estimate(
+    if (!rpc.get_fee_estimate(
             FEE_ESTIMATE_GRACE_BLOCKS,
-            fee_estimated, error_msg))
+            fee_estimated_per_byte, fee_estimated_per_out, error_msg))
     {
-        cerr << "rpc.get_dynamic_per_kb_fee_estimate failed" << endl;
+        cerr << "rpc.get_fee_estimate failed" << endl;
         return false;
     }
 

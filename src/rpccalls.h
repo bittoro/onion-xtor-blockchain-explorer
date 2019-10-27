@@ -106,9 +106,10 @@ public:
     get_hardfork_info( COMMAND_RPC_HARD_FORK_INFO::response& res);
 
     bool
-    get_dynamic_per_kb_fee_estimate(
+    get_fee_estimate(
             uint64_t grace_blocks,
-            uint64_t& fee,
+            uint64_t& fee_per_byte,
+            uint64_t& fee_per_out,
             string& error_msg);
 
 

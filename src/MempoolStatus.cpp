@@ -248,15 +248,15 @@ MempoolStatus::read_network_info()
     if (!rpc.get_network_info(rpc_network_info))
         return false;
 
-    uint64_t fee_estimated;
+    uint64_t fee_estimated_per_byte, fee_estimated_per_out;
 
     string error_msg;
 
-    if (!rpc.get_dynamic_per_kb_fee_estimate(
+    if (!rpc.get_fee_estimate(
             FEE_ESTIMATE_GRACE_BLOCKS,
-            fee_estimated, error_msg))
+            fee_estimated_per_byte, fee_estimated_per_out, error_msg))
     {
-        cerr << "rpc.get_dynamic_per_kb_fee_estimate failed" << endl;
+        cerr << "rpc.get_fee_estimate failed" << endl;
         return false;
     }
 
@@ -315,7 +315,8 @@ MempoolStatus::read_network_info()
     epee::string_tools::hex_to_pod(rpc_network_info.top_block_hash,
                                    local_copy.top_block_hash);
 
-    local_copy.fee_per_kb                 = fee_estimated;
+    local_copy.fee_per_byte               = fee_estimated_per_byte;
+    local_copy.fee_per_out                = fee_estimated_per_out;
     local_copy.info_timestamp             = static_cast<uint64_t>(std::time(nullptr));
 
     local_copy.current_hf_version         = rpc_hardfork_info.version;

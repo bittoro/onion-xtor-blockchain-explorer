@@ -371,6 +371,21 @@ main(int ac, const char* av[])
         return lokblocks.render_quorum_states_html(true /*add_header_and_footer*/);
     });
 
+    CROW_ROUTE(app, "/checkpoint_quorum/<uint>")
+    ([&](const crow::request& req, uint64_t height) {
+        return lokblocks.render_single_quorum_html(service_nodes::quorum_type::checkpointing, height);
+    });
+
+    CROW_ROUTE(app, "/obligations_quorum/<uint>")
+    ([&](const crow::request& req, uint64_t height) {
+        return lokblocks.render_single_quorum_html(service_nodes::quorum_type::obligations, height);
+    });
+
+    CROW_ROUTE(app, "/checkpoints")
+    ([&](const crow::request& req) {
+        return lokblocks.render_checkpoints_html(true /*add_header_and_footer*/);
+    });
+
     // TODO(loki): This should be combined into the normal search mechanism, we shouldn't have 2 search bars.
     CROW_ROUTE(app, "/search_service_node").methods("GET"_method)
     ([&](const crow::request& req) {

@@ -248,6 +248,10 @@ td span.checkpoint-not-signed { color: #c50022; }
     text-overflow: ellipsis;
 }
 
+h3 .sn-count {
+    font-weight: bold;
+}
+
 .TXType {
   font-family: initial;
 }

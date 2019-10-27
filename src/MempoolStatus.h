@@ -88,7 +88,8 @@ struct MempoolStatus
         uint64_t current_hf_version {0};
 
         uint64_t hash_rate  {0};
-        uint64_t fee_per_kb  {0};
+        uint64_t fee_per_byte {0};
+        uint64_t fee_per_out {0};
         uint64_t info_timestamp  {0};
         uint64_t staking_requirement {0};
         uint64_t total_blockchain_size {0};
