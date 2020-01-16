@@ -611,7 +611,7 @@ sum_fees_in_txs(const vector<transaction>& txs)
 
     for (const transaction& tx: txs)
     {
-        fees_sum += get_tx_fee(tx);
+        fees_sum += get_tx_miner_fee(tx, false /*don't subtract burned amounts*/);
     }
 
     return fees_sum;

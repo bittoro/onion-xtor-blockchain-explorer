@@ -91,7 +91,9 @@ static void update_circulating_supply()
             {
                 if (tx.vin.at(0).type() != typeid(txin_gen))
                 {
-                    fees += get_tx_fee(tx);
+                    fees += get_tx_miner_fee(tx, false /*don't subtract burned amount*/);
+
+                    // FIXME: calculate, store, and show burned amounts
                 }
             }
         }
@@ -293,7 +295,9 @@ CurrentBlockchainStatus::calculate_emission_in_blocks(
 
         for(const auto& tx: txs)
         {
-            tx_fee_amount += get_tx_fee(tx);
+            tx_fee_amount += get_tx_miner_fee(tx, false /*don't subtract burned amount*/);
+
+            // FIXME: calculate, store, and show burned amounts
         }
 
         (void) missed_txs;

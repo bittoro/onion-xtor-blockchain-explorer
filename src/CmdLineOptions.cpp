@@ -50,7 +50,7 @@ namespace lokeg
                 ("enable-autorefresh-option", value<bool>()->default_value(false)->implicit_value(true),
                  "enable users to have the index page on autorefresh")
                 ("enable-emission-monitor", value<bool>()->default_value(false)->implicit_value(true),
-                 "enable BitToro total emission monitoring thread")
+                 "enable Bittoro total emission monitoring thread")
                 ("port,p", value<string>()->default_value("8081"),
                  "default explorer port")
                 ("bindaddr,x", value<string>()->default_value("0.0.0.0"),
@@ -74,7 +74,9 @@ namespace lokeg
                 ("ssl-key-file", value<string>(),
                  "path to key file for ssl (https) functionality")
                 ("daemon-url,d", value<string>()->default_value("http:://127.0.0.1:11045"),
-                 "BitToro daemon url");
+                 "Bittoro daemon url")
+                ("log-level", value<string>(),
+                 "set log level");
 
 
         store(command_line_parser(acc, avv)

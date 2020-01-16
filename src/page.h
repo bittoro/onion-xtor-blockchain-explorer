@@ -584,10 +584,11 @@ page(MicroCore* _mcore,
 
 }
 
-int portions_to_percent(uint64_t portions)
+std::string portions_to_percent(uint64_t portions)
 {
-    int result = (int)(((portions / (double)STAKING_PORTIONS) * 100.0) + 0.5);
-    return result;
+    std::ostringstream os;
+    os << portions / (double)STAKING_PORTIONS * 100.;
+    return os.str();
 }
 
 time_t calculate_service_node_expiry_timestamp(uint64_t expiry_height)
@@ -823,10 +824,11 @@ mstch::array gather_sn_data(const std::vector<std::string> &nodes, const sn_entr
     return data;
 }
 
-mstch::map get_quorum_state_context(uint64_t start_height, uint64_t end_height, size_t num_quorums, size_t sn_display_limit = 20, service_nodes::quorum_type type = service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value) {
+mstch::map get_quorum_state_context(uint64_t start_height, uint64_t end_height, size_t num_quorums, size_t sn_display_limit = 20, const service_nodes::quorum_type *type = nullptr) {
 
+    uint8_t q_type = type ? static_cast<uint8_t>(*type) : COMMAND_RPC_GET_QUORUM_STATE::ALL_QUORUMS_SENTINEL_VALUE;
     COMMAND_RPC_GET_QUORUM_STATE::response response = {};
-    rpc.get_quorum_state(response, start_height, end_height, static_cast<uint8_t>(type));
+    rpc.get_quorum_state(response, start_height, end_height, q_type);
 
     sn_entry_map pk2sninfo;
     {
@@ -838,10 +840,12 @@ mstch::map get_quorum_state_context(uint64_t start_height, uint64_t end_height, 
     }
 
     std::vector<std::pair<service_nodes::quorum_type, std::string>> quorum_types;
-    if (type == service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value || type == service_nodes::quorum_type::obligations)
+    if (!type || *type == service_nodes::quorum_type::obligations)
         quorum_types.emplace_back(service_nodes::quorum_type::obligations, "obligations");
-    if (type == service_nodes::quorum_type::rpc_request_all_quorums_sentinel_value || type == service_nodes::quorum_type::checkpointing)
+    if (!type || *type == service_nodes::quorum_type::checkpointing)
         quorum_types.emplace_back(service_nodes::quorum_type::checkpointing, "checkpointing");
+    if (!type || *type == service_nodes::quorum_type::blink)
+        quorum_types.emplace_back(service_nodes::quorum_type::blink, "blink");
 
     mstch::map page_context {};
 
@@ -890,10 +894,7 @@ mstch::map get_quorum_state_context(uint64_t start_height, uint64_t end_height, 
 }
 
 std::string render_single_quorum_html(service_nodes::quorum_type qtype, uint64_t height) {
-    auto page_context = get_quorum_state_context(height, height, 1, std::numeric_limits<size_t>::max(), qtype);
-
-    if (qtype == service_nodes::quorum_type::checkpointing)
-
+    auto page_context = get_quorum_state_context(height, height, 1, std::numeric_limits<size_t>::max(), &qtype);
     add_css_style(page_context);
     return mstch::render(template_file["quorum_states_full"], page_context);
 }
@@ -1922,7 +1923,7 @@ show_block(uint64_t _blk_height)
     context["sum_fees"]
             = lokeg::lok_amount_to_str(sum_fees, "{:0.6f}", false);
 
-    // get loki in the block reward
+    // get bittoro in the block reward
     context["blk_reward"]
             = lokeg::lok_amount_to_str(txd_coinbase.lok_outputs - sum_fees, "{:0.6f}");
 
@@ -2738,7 +2739,7 @@ show_my_outputs(string tx_hash_str,
 
     if (lok_address_str.empty())
     {
-        return string("BitToro address not provided!");
+        return string("Bittoro address not provided!");
     }
 
     if (viewkey_str.empty())
@@ -2758,13 +2759,13 @@ show_my_outputs(string tx_hash_str,
         return string("Cant get tx hash due to parse error: " + tx_hash_str);
     }
 
-    // parse string representing given BitToro address
+    // parse string representing given bittoro address
     cryptonote::address_parse_info address_info;
 
     if (!lokeg::parse_str_address(lok_address_str,  address_info, nettype))
     {
         cerr << "Cant parse string address: " << lok_address_str << endl;
-        return string("Cant parse XTOR address: " + lok_address_str);
+        return string("Cant parse Bittoro address: " + lok_address_str);
     }
 
     // parse string representing given private key
@@ -3650,7 +3651,6 @@ show_checkrawtx(string raw_tx_data, string action)
 
                 mstch::map tx_cd_data {
                         {"no_of_sources"      , static_cast<uint64_t>(no_of_sources)},
-                        {"use_rct"            , tx_cd.v2_use_rct},
                         {"change_amount"      , lokeg::lok_amount_to_str(tx_change.amount)},
                         {"has_payment_id"     , (payment_id  != null_hash)},
                         {"has_payment_id8"    , (payment_id8 != null_hash8)},
@@ -4885,11 +4885,11 @@ search(string search_text)
     result_html = default_txt;
 
 
-    // check if BitToro address is given based on its length
+    // check if bittoro address is given based on its length
     // if yes, then we can only show its public components
     if (search_str_length == 98)
     {
-        // parse string representing given BitToro address
+        // parse string representing given bittoro address
         address_parse_info address_info;
 
         cryptonote::network_type nettype_addr {cryptonote::network_type::MAINNET};
@@ -4909,7 +4909,7 @@ search(string search_text)
         return show_address_details(address_info, nettype_addr);
     }
 
-    // check if integrated BitToro address is given based on its length
+    // check if integrated bittoro address is given based on its length
     // if yes, then show its public components search tx based on encrypted id
     if (search_str_length == 109)
     {
@@ -6056,7 +6056,7 @@ json_outputs(string tx_hash_str,
     if (address_str.empty())
     {
         j_response["status"]  = "error";
-        j_response["message"] = "BitToro address not provided";
+        j_response["message"] = "Bittoro address not provided";
         return j_response;
     }
 
@@ -6087,13 +6087,13 @@ json_outputs(string tx_hash_str,
         return j_response;
     }
 
-    // parse string representing given BitToro address
+    // parse string representing given bittoro address
     address_parse_info address_info;
 
     if (!lokeg::parse_str_address(address_str,  address_info, nettype))
     {
         j_response["status"]  = "error";
-        j_response["message"] = "Cant parse XTOR address: " + address_str;
+        j_response["message"] = "Cant parse Bittoro address: " + address_str;
         return j_response;
 
     }
@@ -6234,7 +6234,7 @@ json_outputs(string tx_hash_str,
     // check if submited data in the request
     // matches to what was used to produce response.
     j_data["tx_hash"]  = pod_to_hex(txd.hash);
-    j_data["address"]  = pod_to_hex(address_info.address);
+    j_data["address"]  = REMOVE_HASH_BRAKETS(lokeg::print_address(address_info, nettype));
     j_data["viewkey"]  = pod_to_hex(prv_view_key);
     j_data["tx_prove"] = tx_prove;
 
@@ -6281,7 +6281,7 @@ json_outputsblocks(string _limit,
     if (address_str.empty())
     {
         j_response["status"]  = "error";
-        j_response["message"] = "BitToro address not provided";
+        j_response["message"] = "Bittoro address not provided";
         return j_response;
     }
 
@@ -6292,13 +6292,13 @@ json_outputsblocks(string _limit,
         return j_response;
     }
 
-    // parse string representing given BitToro address
+    // parse string representing given Bittoro address
     address_parse_info address_info;
 
     if (!lokeg::parse_str_address(address_str, address_info, nettype))
     {
         j_response["status"]  = "error";
-        j_response["message"] = "Cant parse XTOR address: " + address_str;
+        j_response["message"] = "Cant parse Bittoro address: " + address_str;
         return j_response;
 
     }
@@ -6416,7 +6416,7 @@ json_outputsblocks(string _limit,
     // return parsed values. can be use to double
     // check if submited data in the request
     // matches to what was used to produce response.
-    j_data["address"]  = pod_to_hex(address_info.address);
+    j_data["address"]  = REMOVE_HASH_BRAKETS(lokeg::print_address(address_info, nettype));
     j_data["viewkey"]  = pod_to_hex(prv_view_key);
     j_data["limit"]    = _limit;
     j_data["height"]   = height;
@@ -6447,7 +6447,7 @@ json_networkinfo()
     if (!get_loki_network_info(j_info))
     {
         j_response["status"]  = "error";
-        j_response["message"] = "Cant get Loki network info";
+        j_response["message"] = "Cant get Bittoro network info";
         return j_response;
     }
 
@@ -7394,7 +7394,7 @@ get_tx_details(const transaction& tx,
         if (tx.vin.at(0).type() != typeid(txin_gen))
         {
             // get tx fee
-            txd.fee = get_tx_fee(tx);
+            txd.fee = get_tx_miner_fee(tx, false /*don't subtract burned amounts*/);
         }
     }
 

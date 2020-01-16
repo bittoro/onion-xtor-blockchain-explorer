@@ -150,10 +150,8 @@ bool
 rpccalls::get_network_info(COMMAND_RPC_GET_INFO::response& response)
 {
 
-    epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_INFO::request>
-            req_t = AUTO_VAL_INIT(req_t);
-    epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_INFO::response, std::string>
-            resp_t = AUTO_VAL_INIT(resp_t);
+    epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_INFO::request> req_t{};
+    epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_INFO::response, std::string> resp_t{};
 
     bool r {false};
 
@@ -211,8 +209,8 @@ bool
 rpccalls::get_staking_requirement(uint64_t height, COMMAND_RPC_GET_STAKING_REQUIREMENT::response& response)
 {
 
-    epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_STAKING_REQUIREMENT::request> req_t = AUTO_VAL_INIT(req_t);
-    epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_STAKING_REQUIREMENT::response, std::string> resp_t = AUTO_VAL_INIT(resp_t);
+    epee::json_rpc::request<cryptonote::COMMAND_RPC_GET_STAKING_REQUIREMENT::request> req_t{};
+    epee::json_rpc::response<cryptonote::COMMAND_RPC_GET_STAKING_REQUIREMENT::response, std::string> resp_t{};
 
     bool r {false};
 
@@ -270,8 +268,8 @@ rpccalls::get_staking_requirement(uint64_t height, COMMAND_RPC_GET_STAKING_REQUI
 bool
 rpccalls::get_hardfork_info(COMMAND_RPC_HARD_FORK_INFO::response& response)
 {
-    epee::json_rpc::request<cryptonote::COMMAND_RPC_HARD_FORK_INFO::request> req_t = AUTO_VAL_INIT(req_t);
-    epee::json_rpc::response<cryptonote::COMMAND_RPC_HARD_FORK_INFO::response, std::string> resp_t = AUTO_VAL_INIT(resp_t);
+    epee::json_rpc::request<cryptonote::COMMAND_RPC_HARD_FORK_INFO::request> req_t{};
+    epee::json_rpc::response<cryptonote::COMMAND_RPC_HARD_FORK_INFO::response, std::string> resp_t{};
 
 
     bool r {false};
@@ -336,10 +334,8 @@ rpccalls::get_fee_estimate(
         uint64_t& fee_per_out,
         string& error_msg)
 {
-    epee::json_rpc::request<COMMAND_RPC_GET_BASE_FEE_ESTIMATE::request>
-            req_t = AUTO_VAL_INIT(req_t);
-    epee::json_rpc::response<COMMAND_RPC_GET_BASE_FEE_ESTIMATE::response, std::string>
-            resp_t = AUTO_VAL_INIT(resp_t);
+    epee::json_rpc::request<COMMAND_RPC_GET_BASE_FEE_ESTIMATE::request> req_t{};
+    epee::json_rpc::response<COMMAND_RPC_GET_BASE_FEE_ESTIMATE::response, std::string> resp_t{};
 
 
     req_t.jsonrpc = "2.0";
@@ -540,8 +536,6 @@ bool rpccalls::get_checkpoints(COMMAND_RPC_GET_CHECKPOINTS::response &res, uint3
     result = epee::net_utils::invoke_http_json("/json_rpc", request, response, m_http_client, timeout_time_ms);
     if (!result)
         cerr << "Error connecting to Loki daemon at " << daemon_url << endl;
-
-    std::cerr << "wtf; result has " << res.checkpoints.size() << " checkpoints\n";
 
     res = std::move(response.result);
     return result;

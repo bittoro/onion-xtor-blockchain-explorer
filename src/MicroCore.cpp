@@ -37,12 +37,10 @@ MicroCore::MicroCore():
 bool
 MicroCore::init(const string& blockchain_path_, network_type nt)
 {
-
     blockchain_path = blockchain_path_;
     nettype         = nt;
     int db_flags    = DBF_RDONLY;
     BlockchainDB* db = new BlockchainLMDB();
-
     try
     {
         // try opening lmdb database files

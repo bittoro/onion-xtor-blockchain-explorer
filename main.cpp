@@ -56,6 +56,7 @@ main(int ac, const char* av[])
     auto mainnet_url                   = opts.get_option<string>("mainnet-url");
     auto mempool_info_timeout_opt      = opts.get_option<string>("mempool-info-timeout");
     auto mempool_refresh_time_opt      = opts.get_option<string>("mempool-refresh-time");
+    auto log_level                     = opts.get_option<string>("log-level");
     auto testnet_opt                   = opts.get_option<bool>("testnet");
     auto stagenet_opt                  = opts.get_option<bool>("stagenet");
     auto enable_key_image_checker_opt  = opts.get_option<bool>("enable-key-image-checker");
@@ -101,10 +102,9 @@ main(int ac, const char* av[])
 
 
     // set  loki log output level
-    uint32_t log_level = 0;
     mlog_configure("", true);
-
-    (void) log_level;
+    if (log_level)
+        mlog_set_log(log_level->c_str());
 
     //cast port number in string to uint
     uint16_t app_port = boost::lexical_cast<uint16_t>(*port_opt);
